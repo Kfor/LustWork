@@ -6,11 +6,18 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
   const [range, setRange] = useState("today");
   const [format, setFormat] = useState("json");
   const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const handleExport = async () => {
-    const data = await exportData(range, format);
-    setResult(data);
+    try {
+      setError(null);
+      const data = await exportData(range, format);
+      setResult(data);
+    } catch (e) {
+      setError(String(e));
+      setResult(null);
+    }
   };
 
   const handleCopy = async () => {
@@ -75,6 +82,10 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </div>
+
+        {error && (
+          <p className="text-sm text-[var(--accent)]">Export failed: {error}</p>
+        )}
 
         {result && (
           <div className="flex-1 overflow-auto">

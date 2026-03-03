@@ -26,13 +26,13 @@ export default function WorkTimer() {
 
   // Compute daily totals
   const now = Math.floor(Date.now() / 1000);
-  const workMins = workBlocks
+  const workSecs = workBlocks
     .filter((b) => b.kind === "work")
     .reduce((sum, b) => {
       const end = b.end_ts ?? now;
       return sum + (end - b.start_ts);
     }, 0);
-  const breakMins = workBlocks
+  const breakSecs = workBlocks
     .filter((b) => b.kind === "break")
     .reduce((sum, b) => {
       const end = b.end_ts ?? now;
@@ -57,8 +57,8 @@ export default function WorkTimer() {
           Timer
         </h2>
         <div className="flex gap-2 text-xs text-[var(--text-dim)]">
-          <span>Work: {fmtMin(workMins)}</span>
-          <span>Break: {fmtMin(breakMins)}</span>
+          <span>Work: {fmtMin(workSecs)}</span>
+          <span>Break: {fmtMin(breakSecs)}</span>
         </div>
       </div>
 

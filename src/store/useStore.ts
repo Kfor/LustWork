@@ -30,10 +30,10 @@ interface AppState {
   loadToday: () => Promise<void>;
   rollDice: () => Promise<void>;
   setDayNotes: (notes: string) => Promise<void>;
-  startWork: (kind: string, plannedMinutes?: number) => Promise<void>;
+  startWork: (kind: "work" | "break", plannedMinutes?: number) => Promise<void>;
   stopWork: () => Promise<void>;
   addTask: (title: string) => Promise<void>;
-  updateTaskStatus: (taskId: string, status: string) => Promise<void>;
+  updateTaskStatus: (taskId: string, status: Task["status"]) => Promise<void>;
   logEvent: (payload: EventPayload) => Promise<void>;
   setRatings: (payload: RatingsPayload) => Promise<void>;
   exportData: (range: string, format: string) => Promise<string>;
@@ -91,7 +91,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
-  startWork: async (kind: string, plannedMinutes?: number) => {
+  startWork: async (kind: "work" | "break", plannedMinutes?: number) => {
     try {
       const { activeBlockId } = get();
       if (activeBlockId) {
@@ -130,7 +130,7 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
-  updateTaskStatus: async (taskId: string, status: string) => {
+  updateTaskStatus: async (taskId: string, status: Task["status"]) => {
     try {
       const task = await invoke<Task>("update_task_status", { taskId, status });
       set((s) => ({
@@ -163,7 +163,12 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   exportData: async (range: string, format: string) => {
-    return invoke<string>("export_data", { range, format });
+    try {
+      return await invoke<string>("export_data", { range, format });
+    } catch (e) {
+      console.error("exportData failed:", e);
+      throw e;
+    }
   },
 
   setQuickCaptureOpen: (open: boolean) => set({ quickCaptureOpen: open }),

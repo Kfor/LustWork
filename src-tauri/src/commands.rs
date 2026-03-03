@@ -178,11 +178,14 @@ pub fn update_task_status(
     } else {
         None
     };
-    conn.execute(
+    let updated = conn.execute(
         "UPDATE tasks SET status = ?1, completed_at = ?2 WHERE id = ?3",
         params![status, completed_at, task_id],
     )
     .map_err(|e| e.to_string())?;
+    if updated == 0 {
+        return Err(format!("Task '{}' not found", task_id));
+    }
 
     let mut stmt = conn
         .prepare("SELECT id, date, title, status, created_at, completed_at, notes FROM tasks WHERE id = ?1")
@@ -246,6 +249,12 @@ pub fn set_ratings(
     get_ratings(&conn, &date)?.ok_or_else(|| "Failed to save ratings".into())
 }
 
+#[derive(Clone, Copy)]
+enum DateFilter {
+    Exact,
+    Since,
+}
+
 #[tauri::command]
 pub fn export_data(
     state: State<DbState>,
@@ -253,32 +262,32 @@ pub fn export_data(
     format: String,
 ) -> Result<String, String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
-    let (op, date_val) = match range.as_str() {
+    let (filter, date_val) = match range.as_str() {
         "today" => {
             let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-            ("=", today)
+            (DateFilter::Exact, today)
         }
         "week" => {
             let today = chrono::Local::now();
             let week_ago = today - chrono::Duration::days(7);
-            (">=", week_ago.format("%Y-%m-%d").to_string())
+            (DateFilter::Since, week_ago.format("%Y-%m-%d").to_string())
         }
-        _ => (">=", "1970-01-01".to_string()),
+        _ => (DateFilter::Since, "1970-01-01".to_string()),
     };
 
     if format == "json" {
-        export_json(&conn, op, &date_val)
+        export_json(&conn, filter, &date_val)
     } else {
-        export_csv(&conn, op, &date_val)
+        export_csv(&conn, filter, &date_val)
     }
 }
 
-fn export_json(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<String, String> {
-    let day_plans = query_day_plans(conn, op, date_val)?;
-    let ratings = query_all_ratings(conn, op, date_val)?;
-    let work_blocks = query_all_work_blocks(conn, op, date_val)?;
-    let tasks = query_all_tasks(conn, op, date_val)?;
-    let events = query_all_events(conn, op, date_val)?;
+fn export_json(conn: &rusqlite::Connection, filter: DateFilter, date_val: &str) -> Result<String, String> {
+    let day_plans = query_day_plans(conn, filter, date_val)?;
+    let ratings = query_all_ratings(conn, filter, date_val)?;
+    let work_blocks = query_all_work_blocks(conn, filter, date_val)?;
+    let tasks = query_all_tasks(conn, filter, date_val)?;
+    let events = query_all_events(conn, filter, date_val)?;
 
     let export = serde_json::json!({
         "exported_at": Utc::now().to_rfc3339(),
@@ -292,13 +301,13 @@ fn export_json(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<
     serde_json::to_string_pretty(&export).map_err(|e| e.to_string())
 }
 
-fn export_csv(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<String, String> {
+fn export_csv(conn: &rusqlite::Connection, filter: DateFilter, date_val: &str) -> Result<String, String> {
     let mut result = String::new();
 
     // Events CSV
     result.push_str("=== events.csv ===\n");
     result.push_str("id,date,ts,event_type,level,trigger_type,duration_sec,intensity,media_flag,context,note\n");
-    let events = query_all_events(conn, op, date_val)?;
+    let events = query_all_events(conn, filter, date_val)?;
     for e in &events {
         result.push_str(&format!(
             "{},{},{},{},{},{},{},{},{},{},{}\n",
@@ -311,7 +320,7 @@ fn export_csv(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<S
     // Work blocks CSV
     result.push_str("\n=== work_blocks.csv ===\n");
     result.push_str("id,date,kind,start_ts,end_ts,planned_minutes,tags\n");
-    let blocks = query_all_work_blocks(conn, op, date_val)?;
+    let blocks = query_all_work_blocks(conn, filter, date_val)?;
     for b in &blocks {
         result.push_str(&format!(
             "{},{},{},{},{},{},{}\n",
@@ -323,7 +332,7 @@ fn export_csv(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<S
     // Ratings CSV
     result.push_str("\n=== ratings.csv ===\n");
     result.push_str("date,efficiency,pleasure,health,sleep_hours,sleep_quality,exercise_minutes,exercise_type\n");
-    let ratings = query_all_ratings(conn, op, date_val)?;
+    let ratings = query_all_ratings(conn, filter, date_val)?;
     for r in &ratings {
         result.push_str(&format!(
             "{},{},{},{},{},{},{},{}\n",
@@ -335,7 +344,7 @@ fn export_csv(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<S
     // Tasks CSV
     result.push_str("\n=== tasks.csv ===\n");
     result.push_str("id,date,title,status,created_at,completed_at,notes\n");
-    let tasks = query_all_tasks(conn, op, date_val)?;
+    let tasks = query_all_tasks(conn, filter, date_val)?;
     for t in &tasks {
         result.push_str(&format!(
             "{},{},{},{},{},{},{}\n",
@@ -372,9 +381,12 @@ fn opt_f64(v: Option<f64>) -> String {
     v.map(|x| x.to_string()).unwrap_or_default()
 }
 
-fn query_day_plans(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<Vec<DayPlan>, String> {
-    let sql = format!("SELECT date, condition, random_seed, notes, created_at FROM day_plans WHERE date {} ?1 ORDER BY date", op);
-    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+fn query_day_plans(conn: &rusqlite::Connection, filter: DateFilter, date_val: &str) -> Result<Vec<DayPlan>, String> {
+    let sql = match filter {
+        DateFilter::Exact => "SELECT date, condition, random_seed, notes, created_at FROM day_plans WHERE date = ?1 ORDER BY date",
+        DateFilter::Since => "SELECT date, condition, random_seed, notes, created_at FROM day_plans WHERE date >= ?1 ORDER BY date",
+    };
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(params![date_val], |row| {
             Ok(DayPlan {
@@ -389,9 +401,12 @@ fn query_day_plans(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Res
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
-fn query_all_ratings(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<Vec<Ratings>, String> {
-    let sql = format!("SELECT date, efficiency, pleasure, health, sleep_hours, sleep_quality, exercise_minutes, exercise_type, created_at, updated_at FROM ratings WHERE date {} ?1 ORDER BY date", op);
-    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+fn query_all_ratings(conn: &rusqlite::Connection, filter: DateFilter, date_val: &str) -> Result<Vec<Ratings>, String> {
+    let sql = match filter {
+        DateFilter::Exact => "SELECT date, efficiency, pleasure, health, sleep_hours, sleep_quality, exercise_minutes, exercise_type, created_at, updated_at FROM ratings WHERE date = ?1 ORDER BY date",
+        DateFilter::Since => "SELECT date, efficiency, pleasure, health, sleep_hours, sleep_quality, exercise_minutes, exercise_type, created_at, updated_at FROM ratings WHERE date >= ?1 ORDER BY date",
+    };
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(params![date_val], |row| {
             Ok(Ratings {
@@ -411,9 +426,12 @@ fn query_all_ratings(conn: &rusqlite::Connection, op: &str, date_val: &str) -> R
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
-fn query_all_work_blocks(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<Vec<WorkBlock>, String> {
-    let sql = format!("SELECT id, date, kind, start_ts, end_ts, planned_minutes, tags FROM work_blocks WHERE date {} ?1 ORDER BY start_ts", op);
-    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+fn query_all_work_blocks(conn: &rusqlite::Connection, filter: DateFilter, date_val: &str) -> Result<Vec<WorkBlock>, String> {
+    let sql = match filter {
+        DateFilter::Exact => "SELECT id, date, kind, start_ts, end_ts, planned_minutes, tags FROM work_blocks WHERE date = ?1 ORDER BY start_ts",
+        DateFilter::Since => "SELECT id, date, kind, start_ts, end_ts, planned_minutes, tags FROM work_blocks WHERE date >= ?1 ORDER BY start_ts",
+    };
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(params![date_val], |row| {
             Ok(WorkBlock {
@@ -430,9 +448,12 @@ fn query_all_work_blocks(conn: &rusqlite::Connection, op: &str, date_val: &str) 
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
-fn query_all_tasks(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<Vec<Task>, String> {
-    let sql = format!("SELECT id, date, title, status, created_at, completed_at, notes FROM tasks WHERE date {} ?1 ORDER BY created_at", op);
-    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+fn query_all_tasks(conn: &rusqlite::Connection, filter: DateFilter, date_val: &str) -> Result<Vec<Task>, String> {
+    let sql = match filter {
+        DateFilter::Exact => "SELECT id, date, title, status, created_at, completed_at, notes FROM tasks WHERE date = ?1 ORDER BY created_at",
+        DateFilter::Since => "SELECT id, date, title, status, created_at, completed_at, notes FROM tasks WHERE date >= ?1 ORDER BY created_at",
+    };
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(params![date_val], |row| {
             Ok(Task {
@@ -449,9 +470,12 @@ fn query_all_tasks(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Res
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
-fn query_all_events(conn: &rusqlite::Connection, op: &str, date_val: &str) -> Result<Vec<Event>, String> {
-    let sql = format!("SELECT id, date, ts, event_type, level, trigger_type, duration_sec, intensity, media_flag, context, note FROM events WHERE date {} ?1 ORDER BY ts", op);
-    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+fn query_all_events(conn: &rusqlite::Connection, filter: DateFilter, date_val: &str) -> Result<Vec<Event>, String> {
+    let sql = match filter {
+        DateFilter::Exact => "SELECT id, date, ts, event_type, level, trigger_type, duration_sec, intensity, media_flag, context, note FROM events WHERE date = ?1 ORDER BY ts",
+        DateFilter::Since => "SELECT id, date, ts, event_type, level, trigger_type, duration_sec, intensity, media_flag, context, note FROM events WHERE date >= ?1 ORDER BY ts",
+    };
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map(params![date_val], |row| {
             Ok(Event {
