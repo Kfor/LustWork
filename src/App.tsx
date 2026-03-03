@@ -1,28 +1,29 @@
-import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useEffect } from "react";
+import { useTodayStore } from "./store/todayStore";
+import TodayPage from "./pages/TodayPage";
+import QuickCapturePalette from "./components/QuickCapturePalette";
+import ExportDialog from "./components/ExportDialog";
 
-function App() {
-  const [ready, setReady] = useState(false);
+export default function App() {
+  const { loading, loadToday } = useTodayStore();
 
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    invoke("get_today", { date: today })
-      .then(() => setReady(true))
-      .catch(console.error);
-  }, []);
+    loadToday();
+  }, [loadToday]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <p className="text-gray-400 text-sm">Initializing...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Lust Work</h1>
-        <p className="text-gray-600 mt-2">
-          {ready
-            ? "Database ready. N-of-1 Experiment Tracker."
-            : "Initializing..."}
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-900 text-gray-100">
+      <TodayPage />
+      <QuickCapturePalette />
+      <ExportDialog />
     </div>
   );
 }
-
-export default App;
