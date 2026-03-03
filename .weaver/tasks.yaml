@@ -1,0 +1,28 @@
+version: 1
+settings:
+  concurrency: 5
+  default_base_branch: main
+  branch_prefix: weaver/
+tasks:
+  - id: T1772513762881
+    title: '实现 LustWork v0.1 MVP 全部功能（R1-R9）。PRD: docs/prds/lust-work-desktop-n-of-1-experiment-tracker-tauri-v0-1-mvp.md'
+    status: IN_PROGRESS
+    depends_on: []
+    raw_request: '实现 LustWork v0.1 MVP 全部功能（R1-R9）。PRD: docs/prds/lust-work-desktop-n-of-1-experiment-tracker-tauri-v0-1-mvp.md'
+    acceptance: pnpm tauri dev 启动无 panic，所有 R1-R9 功能可操作
+    timeout_minutes: 60
+    started_at: '2026-03-03T05:01:28.860Z'
+    branch: weaver/T1772513762881-lustwork-v0-1-mvp-r1-r9-prd-docs-prds-lust-work-
+  - id: T1772513769556
+    title: >-
+      QA: 端到端验证 LustWork MVP R1-R9。验证：1) pnpm tauri dev 启动无 panic 2) SQLite db 文件创建成功 3) 骰子掷出 Condition A/B/C 4) 计时器
+      start/...
+    status: TODO
+    depends_on:
+      - T1772513762881
+    raw_request: >-
+      QA: 端到端验证 LustWork MVP R1-R9。验证：1) pnpm tauri dev 启动无 panic 2) SQLite db 文件创建成功 3) 骰子掷出 Condition A/B/C 4) 计时器
+      start/stop/break 正常 5) L1-L4 打点记录入库 6) 任务增删改查 7) 日结评分 1-7 保存 8) Quick Capture 命令解析 9) JSON/CSV 导出内容正确。verdict:
+      PASS/FAIL/BLOCKED。
+    acceptance: E2E QA pass
+    timeout_minutes: 30
