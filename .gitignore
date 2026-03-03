@@ -1,8 +1,5 @@
-# Weaver
-.weaver/logs/
-.weaver/worktrees/
-.weaver/locks/
-.weaver/run/
-.weaver/drafts/
-.weaver/inbox/
-.weaver/tmp/
+node_modules/
+dist/
+src-tauri/target/
+*.db
+.DS_Store
