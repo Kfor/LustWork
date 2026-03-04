@@ -41,6 +41,7 @@ interface TodayState {
   loading: boolean;
   timer: TimerState;
   rewardTimer: RewardTimerState;
+  page: "today" | "settings";
   exportDialogOpen: boolean;
   quickCaptureOpen: boolean;
 
@@ -63,6 +64,7 @@ interface TodayState {
   stopRewardTimer: () => number;
 
   // UI actions
+  setPage: (page: "today" | "settings") => void;
   setExportDialogOpen: (open: boolean) => void;
   setQuickCaptureOpen: (open: boolean) => void;
 }
@@ -89,6 +91,7 @@ export const useTodayStore = create<TodayState>((set, get) => ({
     startedAt: null,
     elapsed: 0,
   },
+  page: "today",
   exportDialogOpen: false,
   quickCaptureOpen: false,
 
@@ -211,7 +214,7 @@ export const useTodayStore = create<TodayState>((set, get) => ({
         ? { ...s.dayPlan, notes }
         : {
             date: s.date,
-            condition: "A",
+            condition: null,
             random_seed: null,
             notes,
             created_at: Math.floor(Date.now() / 1000),
@@ -272,6 +275,7 @@ export const useTodayStore = create<TodayState>((set, get) => ({
     return elapsed;
   },
 
+  setPage: (page) => set({ page }),
   setExportDialogOpen: (open) => set({ exportDialogOpen: open }),
   setQuickCaptureOpen: (open) => set({ quickCaptureOpen: open }),
 }));

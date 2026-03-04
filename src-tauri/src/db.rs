@@ -5,7 +5,7 @@ pub fn init_db(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS day_plans (
             date TEXT PRIMARY KEY,
-            condition TEXT NOT NULL,
+            condition TEXT,
             random_seed TEXT,
             notes TEXT,
             created_at INTEGER NOT NULL
@@ -66,5 +66,33 @@ pub fn init_db(conn: &Connection) -> Result<(), rusqlite::Error> {
         CREATE INDEX IF NOT EXISTS idx_work_blocks_date ON work_blocks(date);
         CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks(date);
         CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);",
-    )
+    )?;
+
+    // Migration: make day_plans.condition nullable for existing databases
+    let condition_notnull: bool = conn
+        .query_row(
+            "SELECT \"notnull\" FROM pragma_table_info('day_plans') WHERE name = 'condition'",
+            [],
+            |row| Ok(row.get::<_, i32>(0)? == 1),
+        )
+        .unwrap_or(false);
+
+    if condition_notnull {
+        conn.execute_batch(
+            "BEGIN;
+            CREATE TABLE day_plans_new (
+                date TEXT PRIMARY KEY,
+                condition TEXT,
+                random_seed TEXT,
+                notes TEXT,
+                created_at INTEGER NOT NULL
+            );
+            INSERT INTO day_plans_new SELECT * FROM day_plans;
+            DROP TABLE day_plans;
+            ALTER TABLE day_plans_new RENAME TO day_plans;
+            COMMIT;",
+        )?;
+    }
+
+    Ok(())
 }

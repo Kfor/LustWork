@@ -1,11 +1,12 @@
 import { useEffect } from "react";
 import { useTodayStore } from "./store/todayStore";
 import TodayPage from "./pages/TodayPage";
+import SettingsPage from "./pages/SettingsPage";
 import QuickCapturePalette from "./components/QuickCapturePalette";
 import ExportDialog from "./components/ExportDialog";
 
 export default function App() {
-  const { loading, loadToday } = useTodayStore();
+  const { loading, loadToday, page } = useTodayStore();
 
   useEffect(() => {
     loadToday();
@@ -21,7 +22,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100">
-      <TodayPage />
+      {page === "settings" ? <SettingsPage /> : <TodayPage />}
       <QuickCapturePalette />
       <ExportDialog />
     </div>

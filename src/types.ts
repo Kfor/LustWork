@@ -1,6 +1,6 @@
 export interface DayPlan {
   date: string;
-  condition: string;
+  condition: string | null;
   random_seed: string | null;
   notes: string | null;
   created_at: number;

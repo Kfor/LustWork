@@ -49,7 +49,7 @@ pub fn roll_day_plan(date: String, state: tauri::State<'_, AppState>) -> Result<
 
     Ok(DayPlan {
         date,
-        condition,
+        condition: Some(condition),
         random_seed: Some(seed_str),
         notes: None,
         created_at: now,
@@ -59,7 +59,7 @@ pub fn roll_day_plan(date: String, state: tauri::State<'_, AppState>) -> Result<
 #[tauri::command]
 pub fn set_day_plan(
     date: String,
-    condition: String,
+    condition: Option<String>,
     seed: Option<String>,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {

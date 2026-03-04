@@ -13,7 +13,8 @@ const CONDITION_COLORS: Record<string, string> = {
 };
 
 export default function Header() {
-  const { date, dayPlan, rollDice, setExportDialogOpen } = useTodayStore();
+  const { date, dayPlan, rollDice, setExportDialogOpen, setPage } =
+    useTodayStore();
 
   const condition = dayPlan?.condition;
   const label = condition ? CONDITION_LABELS[condition] ?? condition : null;
@@ -46,6 +47,13 @@ export default function Header() {
           className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors"
         >
           Export
+        </button>
+        <button
+          onClick={() => setPage("settings")}
+          className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 rounded transition-colors"
+          title="Settings"
+        >
+          Settings
         </button>
       </div>
     </header>
