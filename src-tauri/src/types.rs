@@ -4,7 +4,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DayPlan {
     pub date: String,
-    pub condition: String,
+    pub condition: Option<String>,
     pub random_seed: Option<String>,
     pub notes: Option<String>,
     pub created_at: i64,
