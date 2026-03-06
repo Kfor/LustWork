@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 
 function RatingSlider({
@@ -36,6 +36,18 @@ export default function RatingsPanel() {
   const [sleepQuality, setSleepQuality] = useState(ratings?.sleep_quality ?? 4);
   const [exerciseMinutes, setExerciseMinutes] = useState(ratings?.exercise_minutes ?? 0);
   const [exerciseType, setExerciseType] = useState(ratings?.exercise_type ?? '');
+
+  useEffect(() => {
+    if (ratings) {
+      setEfficiency(ratings.efficiency ?? 4);
+      setPleasure(ratings.pleasure ?? 4);
+      setHealth(ratings.health ?? 4);
+      setSleepHours(ratings.sleep_hours ?? 7);
+      setSleepQuality(ratings.sleep_quality ?? 4);
+      setExerciseMinutes(ratings.exercise_minutes ?? 0);
+      setExerciseType(ratings.exercise_type ?? '');
+    }
+  }, [ratings]);
 
   const save = () => {
     setRatings({
